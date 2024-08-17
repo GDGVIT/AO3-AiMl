@@ -9,8 +9,17 @@ from fastapi import FastAPI,Cookie,Path
 from typing import Annotated
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],  
+    allow_headers=["*"],
+)
 
 def extract_bookmark_data(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
