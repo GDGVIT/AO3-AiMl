@@ -5,7 +5,7 @@ import faiss
 from sklearn.feature_extraction.text import TfidfVectorizer
 import requests
 from bs4 import BeautifulSoup
-from fastapi import FastAPI,Cookie,Path
+from fastapi import FastAPI, Cookie, Path
 from typing import Annotated
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -15,11 +15,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def extract_bookmark_data(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -46,11 +47,13 @@ def extract_bookmark_data(html_content):
 
     return bookmarks
 
+
 def safe_eval(x):
     try:
         return ast.literal_eval(x)
     except:
         return x if isinstance(x, list) else []
+
 
 def safe_transform(vectorizer, text):
     try:
@@ -60,19 +63,21 @@ def safe_transform(vectorizer, text):
         print("Problematic text:", text)
         return None
 
+
 def get_top_stories(tag):
     tag_query = tag.replace(" ", "%20")
     search_url = f"https://archiveofourown.org/works/search?work_search%5Bquery%5D=&work_search%5Btitle%5D=&work_search%5Bcreators%5D=&work_search%5Brevised_at%5D=&work_search%5Bcomplete%5D=&work_search%5Bcrossover%5D=&work_search%5Bsingle_chapter%5D=0&work_search%5Bword_count%5D=&work_search%5Blanguage_id%5D=&work_search%5Bfandom_names%5D={tag_query}&work_search%5Brating_ids%5D=&work_search%5Bcharacter_names%5D=&work_search%5Brelationship_names%5D=&work_search%5Bfreeform_names%5D=&work_search%5Bhits%5D=&work_search%5Bkudos_count%5D=&work_search%5Bcomments_count%5D=&work_search%5Bbookmarks_count%5D=&work_search%5Bsort_column%5D=_score&work_search%5Bsort_direction%5D=desc&commit=Search"
     response = requests.get(search_url)
     soup = BeautifulSoup(response.content, 'html.parser')
-    
+
     # Extract the top 5 stories' URLs
     story_urls = []
     for work in soup.select('li.work.blurb.group')[:5]:
         story_url = "https://archiveofourown.org" + work.select_one('h4.heading a')['href']
         story_urls.append(story_url)
-    
+
     return story_urls
+
 
 @app.route('/recommendations/{username}')
 async def similarity(username):
@@ -106,7 +111,7 @@ async def similarity(username):
     tfidf_genres_matrix = safe_transform(vectorizer_genres, df['genres_combined'])
 
     if tfidf_author_matrix is None or tfidf_tags_matrix is None or tfidf_genres_matrix is None:
-        return{"msg":"One or more transformations failed. Cannot proceed."}
+        return {"msg": "One or more transformations failed. Cannot proceed."}
     else:
         tfidf_author_array = tfidf_author_matrix.toarray()
         tfidf_tags_array = tfidf_tags_matrix.toarray()
@@ -162,3 +167,14 @@ async def similarity(username):
     #         print(story)
     #     print("\n")
 
+
+@app.get('/bookmarks/{username}')
+async def get_bookmarks(username: str):
+    url = f"https://archiveofourown.org/users/{username}/bookmarks"
+    response = requests.get(url)
+    data = response.content
+
+    bookmark_data = extract_bookmark_data(data)
+
+    json_compatible_data = jsonable_encoder(bookmark_data)
+    return JSONResponse(content=json_compatible_data)
